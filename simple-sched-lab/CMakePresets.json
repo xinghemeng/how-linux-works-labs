@@ -1,0 +1,52 @@
+{
+    "version": 8,
+    "configurePresets": [
+        {
+            "name": "simple-sched-lab",
+            "displayName": "simple-sched-lab",
+            "description": "Build both sched_c and sched_cpp",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+                "CMAKE_C_COMPILER": "/usr/bin/gcc",
+                "CMAKE_CXX_COMPILER": "/usr/bin/g++",
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            }
+        },
+        {
+            "name": "sched-c",
+            "inherits": "simple-sched-lab",
+            "displayName": "sched_c",
+            "description": "Configure only the C implementation",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "SIMPLE_SCHED_BUILD_C": "ON",
+                "SIMPLE_SCHED_BUILD_CPP": "OFF"
+            }
+        },
+        {
+            "name": "sched-cpp",
+            "inherits": "simple-sched-lab",
+            "displayName": "sched_cpp",
+            "description": "Configure only the C++17 implementation",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "SIMPLE_SCHED_BUILD_C": "OFF",
+                "SIMPLE_SCHED_BUILD_CPP": "ON"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "sched-c",
+            "displayName": "sched_c",
+            "configurePreset": "sched-c"
+        },
+        {
+            "name": "sched-cpp",
+            "displayName": "sched_cpp",
+            "configurePreset": "sched-cpp"
+        }
+    ]
+}
