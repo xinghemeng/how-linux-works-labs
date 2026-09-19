@@ -2,6 +2,7 @@
 
 本文件是 **simple-sched-lab**（进程调度观测实验）C 代码的开发约定与代码审查依据。
 实验目标、命令行与观测步骤以 `experiment.md` 为准。本文只约束 C 代码怎么写。
+基础实现的架构和任务以 `detailed_design.md` 为准；本文不重复固定 IPC、屏障和输出方案。
 
 命令行：`./sched_c nproc total resol`（含义见 `experiment.md` 第 2.1 节）。C++ 实现以 `code_review_cpp.md` 为准。同一改动里两种语言并存时，按文件扩展名分别套用对应规范。
 
@@ -448,8 +449,8 @@ bool sched_lab_args_ok(const struct sched_lab_args *args);
 
 2. **CPU 时间与经过的时间分开**  
    - `total` / `resol` 是 CPU 工作量（独占处理器时大约要跑多久），不是 `sleep`。  
-   - 输出的「经过的时间」：从程序开始到该采样点现实中过了多久（优先 `CLOCK_MONOTONIC`），单位毫秒。  
-   - 可以用循环标定，也可以用进程 CPU 时钟等到 `resol` 毫秒；两种做法都要在 `fork` 前准备好计量基准。  
+   - 输出的「经过的时间」：从共同开始信号到该采样点现实中过了多久（使用 `CLOCK_MONOTONIC`），单位毫秒。
+   - 基础实现用进程 CPU 时钟和绝对目标计量，不需要循环标定；若改用循环标定，必须在 `fork` 前完成标定。
    - 忙等循环中禁止 `sleep` / `nanosleep`。
 
 3. **采样与输出**  
