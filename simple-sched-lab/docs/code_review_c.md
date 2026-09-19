@@ -1,42 +1,15 @@
 # simple-sched-lab C 语言开发规范与代码审查指南
 
 本文件是 **simple-sched-lab**（进程调度观测实验）C 代码的开发约定与代码审查依据。
-实验以 C 为实现基础，同时用独立的 C++17 树学习系统编程。两套代码由 CMake 隔离为 `sched_c` 与 `sched_cpp`，互不混编。C++ 代码以 `code_review_cpp.md` 为准；C 代码、C 头文件以及审查意见以本文为准。
-同一改动里两种语言并存时，按文件扩展名分别套用对应规范，不要用其中一份去覆盖另一份。
+实验目标、命令行与观测步骤以 `experiment.md` 为准。本文只约束 C 代码怎么写。
 
-## 本实验要做什么（审查时对照）
-
-同时运行一个或多个**一味消耗 CPU 时间**的进程，采集：
-
-- 某一时间点运行在逻辑 CPU 上的是哪一个进程
-- 每个进程的运行进度
-
-据此核对本实验对调度器（分时、抢占、多进程共享 CPU）的描述是否正确。
-
-命令行：
-
-```text
-./sched_c n total resol
-```
-
-| 参数 | 含义 |
-| --- | --- |
-| `n` | 同时运行的进程数量 |
-| `total` | 每个进程消耗的 **CPU 时间**（毫秒），达到后该进程结束 |
-| `resol` | 采集统计信息的间隔（毫秒） |
-
-行为约定：
-
-1. 启动 `n` 个进程同时运行；全部结束后父进程再退出。
-2. 每个进程在消耗 `total` 毫秒 CPU 时间后结束（不是 `sleep(total)`，也不是墙钟到点就退出）。
-3. 每 `resol` 毫秒记录一次：① 进程唯一 ID（`0` ~ `n-1`）；② 从**程序开始运行**到该采样点经过的时间（毫秒，墙钟）；③ 进度（%）。
-4. 全部结束后，把所有统计信息用**制表符分隔、逐行**输出。
+命令行：`./sched_c nproc total resol`（含义见 `experiment.md` 第 2.1 节）。C++ 实现以 `code_review_cpp.md` 为准。同一改动里两种语言并存时，按文件扩展名分别套用对应规范。
 
 ## 1. 规范来源与优先级
 
 1. **Linux Kernel Coding Style** 为代码风格的权威来源：
    [https://docs.kernel.org/process/coding-style.html](https://docs.kernel.org/process/coding-style.html)
-2. 本文是该规范在本项目中的**落地摘要与审查清单**。内核文档面向内核树，本文将其映射到用户态 C，并补充本实验的开发约定。
+2. 本文是该规范在本项目中的摘录与审查清单。内核文档面向内核树，本文将其映射到用户态 C，并补充本实验的开发约定。
 3. 冲突处理：
    - 缩进、花括号、命名、函数长度、goto 清理、宏与注释等风格细节以 Linux Kernel Coding Style 为准，**下列项目例外除外**。
    - 构建、目录、进程/时钟/采样输出等项目约定以本文「项目约定」与「项目专项」章节为准。
@@ -57,11 +30,11 @@
 | 日志 | `printk` / `dev_err` / `pr_*` | **`fprintf(stderr, ...)`** 或项目统一日志宏；系统调用失败可辅以 `perror` |
 | 错误码 | 负 errno、`ERR_PTR` | 动作型函数返回 **0 成功 / 负 errno 失败**；指针型失败返回 **`NULL`** |
 | 导出符号 | `EXPORT_SYMBOL` | 不适用；对外符号用 `sched_lab_` 前缀，文件内符号 `static` |
-| 配置裁剪 | Kconfig / `IS_ENABLED` | 不引入 Kconfig；编译期开关用 CMake option + 头文件里的 stub |
+| 配置裁剪 | Kconfig / `IS_ENABLED` | 不引入 Kconfig；编译期开关用 CMake 选项 + 头文件里的空实现 |
 | 断言 / 崩溃 | `WARN*` / `BUG*` / `panic` | **禁止**用 `abort` / `assert` 处理可预期失败；`assert` 只用于内部不变量 |
 | 缩进 / 花括号 / 行宽 | Tab 8、K&R、80 列 | **与内核一致，无例外** |
 
-除此以外不另起炉灶。内核文档中与用户态无关的章节（Kconfig 缩进、`GFP_*`、内联汇编惯例、`do not crash the kernel` 的 `panic_on_warn` 等）不作为本项目审查条款。
+除此以外沿用内核文档。内核文档中与用户态无关的章节（Kconfig 缩进、`GFP_*`、内联汇编惯例、`do not crash the kernel` 的 `panic_on_warn` 等）不作为本项目审查条款。
 
 ## 2. 开发约定
 
@@ -71,7 +44,7 @@
 | --- | --- |
 | 语言 | GNU C11（`CMAKE_C_STANDARD=11`），禁止 C23 及编译器私有扩展 |
 | 编译器 | GCC 或 Clang，以 Linux GNU 工具链为主 |
-| 构建 | CMake ≥ 3.10，使用 `CMakePresets.json` 中的 preset |
+| 构建 | CMake ≥ 3.16，使用 `CMakePresets.json` 中的预设 |
 | 编译数据库 | `compile_commands.json`（供 clangd 使用） |
 | 格式化 | `clang-format`，Linux / K&R 风格：Tab 缩进、宽度 8、列宽 80 |
 | 风格检查 | 内核 `checkpatch.pl` 仅作参考（它假设内核树）；审查不以工具通过为唯一标准 |
@@ -91,20 +64,13 @@ ColumnLimit: 80
 SortIncludes: false
 ```
 
-CMake 用 option 隔离两套代码：`SIMPLE_SCHED_BUILD_C` / `SIMPLE_SCHED_BUILD_CPP`。preset：
+CMake 用选项隔离两套代码：`SIMPLE_SCHED_BUILD_C` / `SIMPLE_SCHED_BUILD_CPP`。预设：
 
-| preset | 目标 |
+| 预设 | 作用 |
 | --- | --- |
-| `simple-lab` | 同时构建 `sched_c` 与 `sched_cpp` |
-| `sched-c` | 只构建 C |
-| `sched-cpp` | 只构建 C++17 |
-
-```bash
-cmake --preset simple-lab
-cmake --build --preset simple-lab
-```
-
-只编一侧：
+| `simple-sched-lab` | 配置两侧（默认都编） |
+| `sched-c` | 只配置 C |
+| `sched-cpp` | 只配置 C++17 |
 
 ```bash
 cmake --preset sched-c
@@ -115,11 +81,11 @@ cmake --build --preset sched-c
 
 1. 代码可编译。打开 `-Wall -Wextra`；warning 要看、要处理，但**不要** `-Werror`（警告不导致构建失败）。
 2. `clang-format` 已格式化本次改动。
-3. 手动走通本次改动对应的实验路径（至少：`n=1` 与 `n>1` 各跑一遍，检查输出列与进度）。
+3. 手动走通本次改动对应的实验路径（至少：`nproc=1` 与 `nproc>1` 各跑一遍，检查输出列与进度）。
 
 ### 2.2 目录与文件
 
-两套代码分目录隔离，不要把 C 和 C++ 源文件放进同一个 target：
+两套代码分目录隔离，不要把 C 和 C++ 源文件放进同一个构建目标：
 
 ```text
 simple-sched-lab/
@@ -184,7 +150,7 @@ extern "C" {
 - **一次提交只做一件事**：功能、重构、格式化不要混在同一提交。
 - 提交说明写清「为什么」，而不是罗列改了哪些文件。
 - 审查以 diff 为单位：先看设计与接口，再看实现与风格。
-- 实验性简化（例如未处理 `n` 过大、未绑核）可以先合入，但必须在注释或 `docs/` 中标明限制。
+- 实验性简化（例如未处理 `nproc` 过大、未绑定逻辑 CPU）可以先合入，但必须在注释或 `docs/` 中标明限制。
 
 ### 2.5 错误处理策略
 
@@ -236,7 +202,7 @@ default:
 int sched_lab_parse_args(int argc, char **argv)
 {
 	if (argc != 4) {
-		fprintf(stderr, "usage: simple-sched-lab n total resol\n");
+		fprintf(stderr, "usage: sched_c nproc total resol\n");
 		return -EINVAL;
 	}
 	return 0;
@@ -274,8 +240,8 @@ if (condition)
 
 ### 3.3 头文件与 include
 
-- 头文件必须自包含：能单独编译，包含自己用到的所有头。
-- Include What You Use：用到的符号在本文件直接 `#include`，不要依赖传递包含。
+- 头文件自包含：能单独编译，包含自己用到的所有头。
+- 用到的符号在本文件直接 `#include`，不要依赖间接包含。
 - `.c` 的第一个 include 是对应头文件，以验证头文件自包含。
 - Include 顺序（组与组之间空一行）：
 
@@ -287,7 +253,7 @@ if (condition)
   系统 / 标准库 / 第三方用 `<>`；本项目头用 `""`，路径相对源码根，禁止 `../`。
 
 ```c
-#include "sched_lab/sample_log.h"
+#include "sample_log.h"
 
 #include <errno.h>
 #include <stdint.h>
@@ -295,11 +261,11 @@ if (condition)
 #include <unistd.h>
 ```
 
-- 优先在头文件里用 `#ifdef` 提供空操作 stub，`.c` 里无条件调用，避免把业务逻辑淹没在预处理条件中（见 3.13）。
+- 优先在头文件里用 `#ifdef` 提供空操作实现，`.c` 里无条件调用，避免把业务逻辑淹没在预处理条件中（见 3.13）。
 
 ### 3.4 命名
 
-C 是斯巴达式语言，不要 PascalCase / 驼峰，也不要匈牙利命名。
+C 命名从简，不要 PascalCase / 驼峰，也不要匈牙利命名。
 
 | 类别 | 规则 | 示例 |
 | --- | --- | --- |
@@ -346,8 +312,8 @@ C 是斯巴达式语言，不要 PascalCase / 驼峰，也不要匈牙利命名�
 有多处失败且需要释放资源时，用 goto 跳到函数尾部的清理标签；没有清理工作则直接 `return`。
 
 - 标签名说明**要做的事**：`out_free_samples:`、`err_close_pipe:`、`err_reap_children:`。禁止 `err1:` / `err2:`。
-- 按资源获取的**反序**设置多个标签，避免「`foo` 仍是 `NULL` 却 `free(foo->bar)`」这类 one-err 缺陷。
-- 理想情况下应能模拟失败，走遍所有出口。`fork` 失败时尤其要回收已经拉起来的孩子。
+- 按资源获取的**反序**设置多个标签，避免「`foo` 仍是 `NULL` 却 `free(foo->bar)`」这种错误路径上的重复释放或空指针解引用。
+- 理想情况下应能模拟失败，走遍所有出口。`fork` 失败时尤其要回收已经创建的子进程。
 
 ```c
 int sched_lab_spawn_children(int n, pid_t **out_pids)
@@ -366,7 +332,7 @@ int sched_lab_spawn_children(int n, pid_t **out_pids)
 			goto err_reap;
 		}
 		if (pids[i] == 0) {
-			/* child path */
+			/* 子进程 */
 			return 0;
 		}
 	}
@@ -401,7 +367,7 @@ err_reap:
 ```
 
 - 公开函数注明：用途、所有权（谁分配谁释放）、失败语义、进程约定（若有）。
-- 时钟选择（为何用 `CLOCK_PROCESS_CPUTIME_ID` 而不是墙钟）、采样为何不能 `sleep`、子进程为何不得直接写 stdout 等**非显然约束**，必须在实现处注释。
+- 时钟选择（为何用进程 CPU 时间而不是经过的时间）、采样为何不能 `sleep`、子进程为何不得直接写 stdout 等**非显然约束**，必须在实现处注释。
 - 数据声明一行一个成员，右侧可以跟短注释。
 - `TODO` 格式：`/* TODO(owner): 要做什么及原因 */`。
 - 注释、标识符和提交说明：本项目文档可用中文；代码标识符使用英文。不要中英混杂命名。
@@ -471,35 +437,35 @@ bool sched_lab_args_ok(const struct sched_lab_args *args);
 - 整数：毫秒、进度、进程个数等与测量相关的字段用定宽类型（优先 `int64_t` 表示毫秒）；循环下标等局部可用 `int` / `size_t`。注意有符号与无符号混用。
 - `sizeof` 优先对表达式：`sizeof(*p)`、`sizeof(buf)`。
 - `switch` 覆盖所有枚举值或有 `default`；贯穿必须显式 `fallthrough;`（C23 前用注释 `/* fallthrough */` 或编译器认可的 `fallthrough` 宏）。
-- 不要在源文件里留下 trailing whitespace。
+- 不要在源文件里留下行尾空白。
 
 ## 4. 项目专项：进程调度观测
 
-本实验用多进程忙等消耗 CPU，并按固定 CPU 时间间隔采样。除内核风格外，审查必须检查：
+本实验用多进程忙等消耗 CPU，并按固定工作量间隔采样。实验语义以 `experiment.md` 为准。除内核风格外，审查必须检查：
 
-1. **进程模型是进程，不是线程**  
-   用 `fork`（或明确文档化且语义等价的方式）创建 `n` 个子进程。父进程 `waitpid`（或等价）回收**全部**子进程后再退出。检查 `fork` / `wait` 返回值；失败路径上已创建的子进程必须收尸，禁止留下僵尸进程。子进程记录里的 ID 是 `0` ~ `n-1` 的实验编号，不要和 OS `pid` 混用而不加说明。不要在未说明的情况下把 `n` 实现成 `n` 条 `pthread`。
+1. **用进程，不用线程**  
+   用 `fork`（或文档中写明的等价方式）创建 `nproc` 个子进程。父进程 `waitpid`（或等价接口）回收**全部**子进程后再退出。检查 `fork` / `wait` 的返回值；失败路径上已创建的子进程必须回收，禁止留下僵尸进程。记录里的 ID 是 `0` ~ `nproc-1` 的实验编号，不要和操作系统的 `pid` 混用而不加说明。不要在未说明的情况下把 `nproc` 实现成 `nproc` 条 `pthread`。
 
-2. **CPU 时间与墙钟时间分开**  
-   - 退出条件：该进程消耗了 `total` 毫秒 **CPU 时间**（`clock_gettime(CLOCK_PROCESS_CPUTIME_ID)` 或等价，如 `getrusage`）。  
-   - 输出的「经过的时间」：从**整个程序开始**到该采样点的墙钟时间（优先 `CLOCK_MONOTONIC`），单位毫秒。  
-   - 采样间隔 `resol` 对齐的是 CPU 时间进度（每再消耗 `resol` 毫秒 CPU 记一条），不是 `sleep(resol)`。  
-   - 忙等循环中禁止插入会让出 CPU 的 `sleep` / `nanosleep`；本实验要的就是调度器眼里的可运行负载。
+2. **CPU 时间与经过的时间分开**  
+   - `total` / `resol` 是 CPU 工作量（独占处理器时大约要跑多久），不是 `sleep`。  
+   - 输出的「经过的时间」：从程序开始到该采样点现实中过了多久（优先 `CLOCK_MONOTONIC`），单位毫秒。  
+   - 可以用循环标定，也可以用进程 CPU 时钟等到 `resol` 毫秒；两种做法都要在 `fork` 前准备好计量基准。  
+   - 忙等循环中禁止 `sleep` / `nanosleep`。
 
-3. **采样缓冲与输出互斥**  
-   每条记录三个字段：`id`、`elapsed_ms`、`progress`（%）。全部进程结束后用制表符分隔、逐行输出。子进程运行期间不要直接抢 `stdout`（多进程同时 `printf` 会交错，无法分析）。应由父进程汇总打印，或子进程结束后按约定有序写出（管道、临时缓冲等）。谁分配缓冲、谁在 `wait` 之后释放，签名上要看得出来。
+3. **采样与输出**  
+   每条记录三列：`id`、`elapsed_ms`、`progress`（%）。忙等过程中不要打印。子进程结束时自己打印、或父进程汇总后再打印都可以。谁分配缓冲区、谁释放，要能从接口看出来。
 
 4. **参数、溢出与进度**  
-   校验 `n > 0`、`total > 0`、`resol > 0`，并处理 `resol > total`、不能整除等情况（策略写进注释或用法说明，不要静默给出空输出）。毫秒换算用 64 位，`timespec` 的 `tv_sec` / `tv_nsec` 转毫秒要防溢出。`n * sizeof(*sample)` 一类乘法先检查溢出再 `calloc`。进度用已消耗 CPU / `total`，最后一次采样应达到或明确逼近 100%。
+   校验 `nproc > 0`、`total > 0`、`resol > 0`，且 `total` 能被 `resol` 整除。毫秒换算用 64 位，`timespec` 转毫秒要防止溢出。`nproc * sizeof(*sample)` 一类乘法先检查溢出再 `calloc`。每个进程 `nrecord = total / resol` 条，最后一次进度为 100%。
 
 5. **资源在所有路径上释放**  
-   管道 fd、动态数组、PID 表，错误返回路径也要 `close` / `free` / `waitpid`。用 goto 集中清理，禁止只在 happy path 里释放。`fork` 之后注意：子进程应关掉只属于父进程的 fd，父进程不要 `free` 仍被孩子使用的共享映射（若使用）。
+   管道 fd、动态数组、PID 表，错误返回路径也要 `close` / `free` / `waitpid`。用 goto 集中清理，禁止只在成功路径里释放。`fork` 之后：子进程应关掉只属于父进程的 fd；不要在子进程里 `free` 仍只应由父进程释放的表。
 
 6. **运行条件写清楚**  
-   逻辑 CPU 个数会改变观测图像；绑核（如 `taskset`）是实验变量，不是隐式依赖。用法写在 stderr 帮助或 `docs/`：三个参数含义、输出三列格式、CPU 时间而非墙钟。不要把「必须看见完美 round-robin」写进 `assert`——程序负责出数据，调度结论放在实验分析里。
+   逻辑 CPU 个数会改变观测结果；绑定到指定逻辑 CPU（如 `taskset`）是实验变量，不要当成默认环境。用法写在标准错误或 `docs/`：三个参数含义、输出三列、`total`/`resol` 是 CPU 工作量、`elapsed_ms` 是经过的时间。不要把「必须均匀轮转」写进 `assert`。
 
 7. **与 C++ 代码共存时**  
-   C 头保持 C 可编译；C++ 侧通过 `extern "C"` 调用。不要在 `.c` 里写 C++，也不要在 `.cpp` 里按本文的 Tab-8 去「统一」C++ 文件。
+   C 头保持 C 可编译；C++ 侧通过 `extern "C"` 调用。不要在 `.c` 里写 C++，也不要在 `.cpp` 里按本文的 Tab、8 列缩进去「统一」C++ 文件。
 
 ## 5. 代码审查清单
 
@@ -510,17 +476,17 @@ bool sched_lab_args_ok(const struct sched_lab_args *args);
 - [ ] 改动范围单一，没有顺手大重构
 - [ ] 接口能看懂所有权、生命周期和失败语义（动作型 vs 谓词型 vs 指针）
 - [ ] 没有引入 C23、VLA、嵌套函数、非标准扩展
-- [ ] `n` 个**进程**同时跑；父进程等待全部子进程；无僵尸进程
+- [ ] `nproc` 个**进程**同时跑；父进程等待全部子进程；无僵尸进程
 - [ ] 忙等消耗的是 CPU 时间；采样不靠 `sleep`
 
 ### 正确性
 
 - [ ] `fork` / `waitpid` / `clock_gettime` 等返回值已检查
-- [ ] 无悬空指针、重复释放、fd 泄漏；goto 清理标签顺序正确；`fork` 失败会收尸
-- [ ] 墙钟（elapsed）与 CPU 时间（total / resol / progress）未混用
+- [ ] 无悬空指针、重复释放、fd 泄漏；goto 清理标签顺序正确；`fork` 失败会回收已创建的子进程
+- [ ] 经过的时间（`elapsed_ms`）与 CPU 工作量（`total` / `resol` / `progress`）未混用
 - [ ] 毫秒与 `n * sizeof` 用足够宽度，无有符号混用导致的环绕
 - [ ] `malloc`/`calloc` 已检查；`sizeof(*p)`；未转换 `void *`
-- [ ] 输出在全部结束后打印，制表符三列，ID 为 `0` ~ `n-1`
+- [ ] 输出为制表符三列，ID 为 `0` ~ `nproc-1`；忙等过程中不打印
 - [ ] 没有依赖未定义行为（含错误的别名、越界、未初始化）
 
 ### 风格
@@ -538,7 +504,7 @@ bool sched_lab_args_ok(const struct sched_lab_args *args);
 - [ ] 参数解析、忙等采样、回收打印没有复制粘贴成多份微差逻辑
 - [ ] 函数长度与局部变量数量仍在可审范围内
 - [ ] 日志足够定位 `fork` 失败、参数非法、时钟失败
-- [ ] 实验限制（未绑核、`n` 上限、输出缓冲策略）已写明
+- [ ] 实验限制（未绑定逻辑 CPU、`nproc` 上限、输出由谁打印）已写明
 
 ## 6. 豁免
 
